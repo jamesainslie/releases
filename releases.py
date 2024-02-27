@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 import argparse
 import subprocess
@@ -14,6 +13,7 @@ import shutil
 logging.basicConfig(filename='.releases/releases.log', level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 def parse_arguments():
+    logging.info('Parsing command line arguments')
     parser = argparse.ArgumentParser(description='Deploy application to GHCR with optional version management.')
     parser.add_argument('--force', '-f', action='store_true', help='Use --no-cache option in docker build.')
     parser.add_argument('--release', type=str, help='Specify release version in the format major.minor.patch.')
@@ -23,9 +23,11 @@ def parse_arguments():
     return parser.parse_args()
 
 def docker_login(user, token):
+    logging.info('Logging into GHCR')
     subprocess.run(f'echo {token} | docker login ghcr.io -u {user} --password-stdin', shell=True, check=True)
 
 def build_and_push_image(version, no_cache):
+    logging.info('Building and pushing Docker image')
     cache_option = '--no-cache' if no_cache else ''
     image_name = f'ghcr.io/{args.ghcr_user}/barnowl:{version}'
     subprocess.run(f'docker build {cache_option} -t {image_name} -t ghcr.io/{args.ghcr_user}/barnowl:latest .', shell=True, check=True)
@@ -33,6 +35,7 @@ def build_and_push_image(version, no_cache):
     subprocess.run(f'docker push ghcr.io/{args.ghcr_user}/barnowl:latest', shell=True, check=True)
 
 def increment_version(version, increment_type):
+    logging.info('Incrementing version')
     major, minor, patch = map(int, version.split('.'))
     if increment_type == 'major':
         return f'{major + 1}.0.0'
@@ -40,9 +43,11 @@ def increment_version(version, increment_type):
         return f'{major}.{minor + 1}.0'
     elif increment_type == 'patch':
         return f'{major}.{minor}.{patch + 1}'
+    logging.info(f'Incremented version to {version}')
     return version
 
 def interactive_version_update(version):
+    logging.info('Performing interactive version update')
     update_patch = input('Increment patch version? [Y/n]: ').strip().lower() or 'y'
     if update_patch == 'y':
         version = increment_version(version, 'patch')
@@ -57,30 +62,8 @@ def interactive_version_update(version):
     
     return version
 
-def install_requirements():
-    requirements_path = 'requirements.txt'
-    if os.path.exists(requirements_path):
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-r', requirements_path])
-    else:
-        print("No requirements.txt found, skipping Python dependencies installation.")
-
-def install_script():
-    install_path = os.path.expanduser('~/sbin')
-    script_name = 'releases'  # Name of the script without .py suffix
-    target_path = os.path.join(install_path, script_name)
-    
-    if not os.path.exists(install_path):
-        os.makedirs(install_path)
-    
-    shutil.copy(__file__, target_path)
-    os.chmod(target_path, 0o755)  # Set the script as executable
-    
-    # Install Python requirements
-    install_requirements()
-    
-    print(f'Script installed to {target_path}. Please ensure {install_path} is in your PATH.')
-
 def create_default_config():
+    logging.info('Creating default config')
     config_path = '.releases'
     if not os.path.exists(config_path):
         os.makedirs(config_path)
@@ -88,9 +71,11 @@ def create_default_config():
         yaml.dump({'ghcr_user': 'jamesainslie', 'token': ''}, config_file)
 
 def main():
+    logging.info('Starting script')
     global args
     args = parse_arguments()
     if args.install:
+        logging.info('Installing script')
         install_script()
         create_default_config()
         return
@@ -110,4 +95,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
