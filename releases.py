@@ -9,12 +9,11 @@ import logging
 import yaml
 import shutil
 
-# Logging setup
-logging.basicConfig(filename='.releases/releases.log', level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 def parse_arguments():
     logging.info('Parsing command line arguments')
     parser = argparse.ArgumentParser(description='Deploy application to GHCR with optional version management.')
+    parser.add_argument('--pkg', type=str, required=True, help='Package name.')
     parser.add_argument('--force', '-f', action='store_true', help='Use --no-cache option in docker build.')
     parser.add_argument('--release', type=str, help='Specify release version in the format major.minor.patch.')
     parser.add_argument('--token', type=str, help='GHCR token for authentication.')
@@ -26,13 +25,13 @@ def docker_login(user, token):
     logging.info('Logging into GHCR')
     subprocess.run(f'echo {token} | docker login ghcr.io -u {user} --password-stdin', shell=True, check=True)
 
-def build_and_push_image(version, no_cache):
+def build_and_push_image(pkg, version, no_cache):
     logging.info('Building and pushing Docker image')
     cache_option = '--no-cache' if no_cache else ''
-    image_name = f'ghcr.io/{args.ghcr_user}/barnowl:{version}'
-    subprocess.run(f'docker build {cache_option} -t {image_name} -t ghcr.io/{args.ghcr_user}/barnowl:latest .', shell=True, check=True)
+    image_name = f'ghcr.io/{args.ghcr_user}/{pkg}:{version}'
+    subprocess.run(f'docker build {cache_option} -t {image_name} -t ghcr.io/{args.ghcr_user}/{pkg}:latest .', shell=True, check=True)
     subprocess.run(f'docker push {image_name}', shell=True, check=True)
-    subprocess.run(f'docker push ghcr.io/{args.ghcr_user}/barnowl:latest', shell=True, check=True)
+    subprocess.run(f'docker push ghcr.io/{args.ghcr_user}/{pkg}:latest', shell=True, check=True)
 
 def increment_version(version, increment_type):
     logging.info('Incrementing version')
@@ -64,20 +63,21 @@ def interactive_version_update(version):
 
 def create_default_config():
     logging.info('Creating default config')
-    config_path = '.releases'
+    config_path = os.path.join(os.getcwd(), '.releases')
     if not os.path.exists(config_path):
         os.makedirs(config_path)
     with open(os.path.join(config_path, 'releases.yaml'), 'w') as config_file:
         yaml.dump({'ghcr_user': 'jamesainslie', 'token': ''}, config_file)
 
+# Logging setup
+create_default_config()
+logging.basicConfig(filename='.releases/releases.log', level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 def main():
     logging.info('Starting script')
     global args
     args = parse_arguments()
     if args.install:
         logging.info('Installing script')
-        install_script()
-        create_default_config()
         return
 
     user = args.ghcr_user
@@ -85,13 +85,13 @@ def main():
 
     docker_login(user, token)
 
-    version = '0.2.12'  # Default version, should ideally load from a config or last release
+    version = '0.1.0'  # Default version, should ideally load from a config or last release
     if args.release:
         version = args.release
     else:
         version = interactive_version_update(version)
 
-    build_and_push_image(version, args.force)
+    build_and_push_image(args.pkg, version, args.force)
 
 if __name__ == '__main__':
     main()
